@@ -1,1 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Messaging Service with File Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background-color: #121212;
+      color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+    }
+
+    .chat-container {
+      padding: 20px;
+      max-width: 100%;
+      margin: 30px auto;
+      background-color: #1e1e1e;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .messages {
+      flex-grow: 1;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      padding: 10px;
+      background-color: #2c2c2c;
+      border-radius: 8px;
+    }
+
+    .message {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 12px;
+      background-color: #333;
+      color: white;
+      font-size: 14px;
+      position: relative;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05);
+      word-wrap: break-word;
+    }
+
+    .from-client {
+      background-color: #4CAF50;
+      text-align: right;
+    }
+
+    .from-other {
+      background-color: #3a3a3a;
+      text-align: left;
+    }
+
+    .status {
+      font-size: 11px;
+      color: #bbb;
+      margin-top: 4px;
+    }
+
+    .input-area {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      gap: 10px;
+      position: sticky;
+      bottom: 0;
+      background-color: #1e1e1e;
+      padding: 10px 20px;
+      border-radius: 12px;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    #message-input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background-color: #2c2c2c;
+      color: #f0f0f0;
+    }
+
+    #send-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      background-color: #4CAF50;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    #send-btn:hover {
+      background-color: #45a049;
+    }
+
+    #file-input {
+      margin-top: 10px;
+      color: #ccc;
+    }
+
+    .file-info {
+      padding: 8px;
+      background-color: #333;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+
+    #image-preview {
+      margin-top: 10px;
+      max-width: 100%;
+      border-radius: 8px;
+    }
+
+    #text-preview {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #333;
+      border-radius: 8px;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="messages" id="messages">
+      <!-- Messages will appear here -->
+    </div>
+    <div class="input-area">
+      <input type="text" id="message-input" placeholder="Type your message..." />
+      <button id="send-btn">Send</button>
+    </div>
+    <input type="file" id="file-input" />
+    <div class="file-info" id="file-preview"></div>
+    <div id="text-preview"></div>
+    <img id="image-preview" alt="Image Preview" />
+  </div>
+
+  <script>
+    const messagesContainer = document.getElementById('messages');
+    const messageInput = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-btn');
+    const fileInput = document.getElementById('file-input');
+    const filePreview = document.getElementById('file-preview');
+    const textPreview = document.getElementById('text-preview');
+    const imagePreview = document.getElementById('image-preview');
+
+    const CHANNEL_KEY = 'chat-messages';
+    const currentUser = Math.random() < 0.5 ? 'client1' : 'client2';
+
+    function loadMessages() {
+      return JSON.parse(localStorage.getItem(CHANNEL_KEY)) || [];
+    }
+
+    function saveMessages(messages) {
+      localStorage.setItem(CHANNEL_KEY, JSON.stringify(messages));
+    }
+
+    function formatTime(ts) {
+      const date = new Date(ts);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function displayMessages() {
+      const messages = loadMessages();
+      messagesContainer.innerHTML = '';
+      messages.forEach(msg => {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message');
+        messageDiv.classList.add(msg.sender === currentUser ? 'from-client' : 'from-other');
+
+        if (msg.text) {
+          messageDiv.innerText = msg.text;
+        } else if (msg.file) {
+          const fileLink = document.createElement('a');
+          fileLink.href = msg.file.url;
+          fileLink.target = '_blank';
+          fileLink.innerText = `📎 ${msg.file.name}`;
+          messageDiv.appendChild(fileLink);
+        } else if (msg.image) {
+          const image = document.createElement('img');
+          image.src = msg.image.url;
+          image.style.maxWidth = '100%';
+          image.style.borderRadius = '8px';
+          messageDiv.appendChild(image);
+        }
+
+        const status = document.createElement('div');
+        status.className = 'status';
+
+        if (msg.readAt) {
+          status.innerText = `Read at ${formatTime(msg.readAt)}`;
+        } else {
+          status.innerText = `Delivered at ${formatTime(msg.timestamp)}`;
+        }
+
+        messageDiv.appendChild(status);
+        messagesContainer.appendChild(messageDiv);
+      });
+
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      const file = fileInput.files[0];
+      const image = imagePreview.src ? imagePreview.src : null;
+
+      if (!text && !file && !image) return;
+
+      const messages = loadMessages();
+
+      const newMessage = {
+        sender: currentUser,
+        timestamp: Date.now(),
+        readAt: null
+      };
+
+      if (text) {
+        newMessage.text = text;
+        messageInput.value = '';
+      } else if (file) {
+        newMessage.file = {
+          name: file.name,
+          url: URL.createObjectURL(file),
+          type: file.type
+        };
+        fileInput.value = '';
+        filePreview.innerHTML = '';
+        textPreview.innerHTML = '';
+        imagePreview.src = '';
+      } else if (image) {
+        newMessage.image = {
+          url: image
+        };
+        imagePreview.src = '';
+      }
+
+      messages.push(newMessage);
+      saveMessages(messages);
+      displayMessages();
+    }
+
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      filePreview.innerHTML = `Selected: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+
+      if (file.type.startsWith('text/')) {
+        const reader = new FileReader();
+        reader.onload = e => textPreview.innerText = e.target.result;
+        reader.readAsText(file);
+        imagePreview.src = '';
+      } else if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          imagePreview.src = e.target.result;
+          textPreview.innerText = '';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Simulate reading messages sent by others
+    setInterval(() => {
+      const messages = loadMessages();
+      let updated = false;
+      messages.forEach(msg => {
+        if (msg.sender !== currentUser && !msg.readAt) {
+          msg.readAt = Date.now();
+          updated = true;
+        }
+      });
+      if (updated) {
+        saveMessages(messages);
+        displayMessages();
+      }
+    }, 2000);
+
+    document.addEventListener('DOMContentLoaded', () => {
+      displayMessages();
+      setInterval(displayMessages, 1000);
+    });
+  </script>
+</body>
+</html>
 
