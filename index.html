@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Messaging Service with File Preview</title>
+  <title>Messaging Service (Hardcoded)</title>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     body {
@@ -86,7 +86,7 @@
       color: #f0f0f0;
     }
 
-    #send-btn {
+    #send-btn, #save-btn {
       padding: 10px 20px;
       border-radius: 8px;
       border: none;
@@ -96,76 +96,37 @@
       cursor: pointer;
     }
 
-    #send-btn:hover {
+    #send-btn:hover, #save-btn:hover {
       background-color: #45a049;
-    }
-
-    #file-input {
-      margin-top: 10px;
-      color: #ccc;
-    }
-
-    .file-info {
-      padding: 8px;
-      background-color: #333;
-      border-radius: 8px;
-      font-size: 14px;
-      margin-top: 10px;
-    }
-
-    #image-preview {
-      margin-top: 10px;
-      max-width: 100%;
-      border-radius: 8px;
-    }
-
-    #text-preview {
-      margin-top: 10px;
-      padding: 10px;
-      background-color: #333;
-      border-radius: 8px;
-      font-size: 14px;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      max-height: 150px;
-      overflow-y: auto;
     }
   </style>
 </head>
 <body>
   <div class="chat-container">
-    <div class="messages" id="messages">
-      <!-- Messages will appear here -->
-    </div>
+    <div class="messages" id="messages"></div>
     <div class="input-area">
       <input type="text" id="message-input" placeholder="Type your message..." />
       <button id="send-btn">Send</button>
+      <button id="save-btn">Save Chat</button>
     </div>
-    <input type="file" id="file-input" />
-    <div class="file-info" id="file-preview"></div>
-    <div id="text-preview"></div>
-    <img id="image-preview" alt="Image Preview" />
   </div>
 
   <script>
+    let currentUser = '';
+    while (!currentUser) {
+      currentUser = prompt('Enter your username:');
+    }
+
     const messagesContainer = document.getElementById('messages');
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-btn');
-    const fileInput = document.getElementById('file-input');
-    const filePreview = document.getElementById('file-preview');
-    const textPreview = document.getElementById('text-preview');
-    const imagePreview = document.getElementById('image-preview');
+    const saveButton = document.getElementById('save-btn');
 
-    const CHANNEL_KEY = 'chat-messages';
-    const currentUser = Math.random() < 0.5 ? 'client1' : 'client2';
-
-    function loadMessages() {
-      return JSON.parse(localStorage.getItem(CHANNEL_KEY)) || [];
-    }
-
-    function saveMessages(messages) {
-      localStorage.setItem(CHANNEL_KEY, JSON.stringify(messages));
-    }
+    // Hardcoded messages array
+    let messages = [
+      // Example:
+      // { sender: 'Alice', text: 'Hello!', timestamp: 1715000000000 }
+    ];
 
     function formatTime(ts) {
       const date = new Date(ts);
@@ -173,7 +134,6 @@
     }
 
     function displayMessages() {
-      const messages = loadMessages();
       messagesContainer.innerHTML = '';
       messages.forEach(msg => {
         const messageDiv = document.createElement('div');
@@ -182,28 +142,11 @@
 
         if (msg.text) {
           messageDiv.innerText = msg.text;
-        } else if (msg.file) {
-          const fileLink = document.createElement('a');
-          fileLink.href = msg.file.url;
-          fileLink.target = '_blank';
-          fileLink.innerText = `📎 ${msg.file.name}`;
-          messageDiv.appendChild(fileLink);
-        } else if (msg.image) {
-          const image = document.createElement('img');
-          image.src = msg.image.url;
-          image.style.maxWidth = '100%';
-          image.style.borderRadius = '8px';
-          messageDiv.appendChild(image);
         }
 
         const status = document.createElement('div');
         status.className = 'status';
-
-        if (msg.readAt) {
-          status.innerText = `Read at ${formatTime(msg.readAt)}`;
-        } else {
-          status.innerText = `Delivered at ${formatTime(msg.timestamp)}`;
-        }
+        status.innerText = `Sent by ${msg.sender} at ${formatTime(msg.timestamp)}`;
 
         messageDiv.appendChild(status);
         messagesContainer.appendChild(messageDiv);
@@ -214,91 +157,80 @@
 
     function sendMessage() {
       const text = messageInput.value.trim();
-      const file = fileInput.files[0];
-      const image = imagePreview.src ? imagePreview.src : null;
-
-      if (!text && !file && !image) return;
-
-      const messages = loadMessages();
+      if (!text) return;
 
       const newMessage = {
         sender: currentUser,
-        timestamp: Date.now(),
-        readAt: null
+        text: text,
+        timestamp: Date.now()
       };
 
-      if (text) {
-        newMessage.text = text;
-        messageInput.value = '';
-      } else if (file) {
-        newMessage.file = {
-          name: file.name,
-          url: URL.createObjectURL(file),
-          type: file.type
-        };
-        fileInput.value = '';
-        filePreview.innerHTML = '';
-        textPreview.innerHTML = '';
-        imagePreview.src = '';
-      } else if (image) {
-        newMessage.image = {
-          url: image
-        };
-        imagePreview.src = '';
-      }
-
       messages.push(newMessage);
-      saveMessages(messages);
+      messageInput.value = '';
       displayMessages();
+    }
+
+    function generateHTMLFile() {
+      const messageData = JSON.stringify(messages, null, 2);
+      const template = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Messaging Service (Saved)</title>
+<script>
+  let currentUser = prompt('Enter your username:');
+  const messages = ${messageData};
+
+  function formatTime(ts) {
+    const date = new Date(ts);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  window.onload = function() {
+    const container = document.getElementById('messages');
+    messages.forEach(msg => {
+      const div = document.createElement('div');
+      div.className = 'message ' + (msg.sender === currentUser ? 'from-client' : 'from-other');
+      div.innerText = msg.text;
+      const status = document.createElement('div');
+      status.className = 'status';
+      status.innerText = 'Sent by ' + msg.sender + ' at ' + formatTime(msg.timestamp);
+      div.appendChild(status);
+      container.appendChild(div);
+    });
+  }
+</script>
+<style>
+  body { font-family: sans-serif; background: #121212; color: #f0f0f0; }
+  .message { margin: 10px; padding: 10px; border-radius: 8px; background: #333; }
+  .from-client { background: #4CAF50; text-align: right; }
+  .from-other { background: #3a3a3a; text-align: left; }
+  .status { font-size: 11px; color: #bbb; }
+</style>
+</head>
+<body>
+<h2>Saved Chat</h2>
+<div id="messages"></div>
+</body>
+</html>`;
+
+      const blob = new Blob([template], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'saved_chat.html';
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
+    saveButton.addEventListener('click', generateHTMLFile);
 
-    fileInput.addEventListener('change', () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-
-      filePreview.innerHTML = `Selected: ${file.name} (${Math.round(file.size / 1024)} KB)`;
-
-      if (file.type.startsWith('text/')) {
-        const reader = new FileReader();
-        reader.onload = e => textPreview.innerText = e.target.result;
-        reader.readAsText(file);
-        imagePreview.src = '';
-      } else if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          imagePreview.src = e.target.result;
-          textPreview.innerText = '';
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-
-    // Simulate reading messages sent by others
-    setInterval(() => {
-      const messages = loadMessages();
-      let updated = false;
-      messages.forEach(msg => {
-        if (msg.sender !== currentUser && !msg.readAt) {
-          msg.readAt = Date.now();
-          updated = true;
-        }
-      });
-      if (updated) {
-        saveMessages(messages);
-        displayMessages();
-      }
-    }, 2000);
-
-    document.addEventListener('DOMContentLoaded', () => {
-      displayMessages();
-      setInterval(displayMessages, 1000);
-    });
+    displayMessages();
   </script>
 </body>
 </html>
-
