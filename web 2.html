@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Two-User Firebase Chat</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #121212;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 600px;
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    #messages {
+      height: 400px;
+      overflow-y: auto;
+      background: #2c2c2c;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .message {
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      background: #333;
+    }
+
+    .from-me {
+      background: #4CAF50;
+      text-align: right;
+    }
+
+    .from-other {
+      background: #3a3a3a;
+      text-align: left;
+    }
+
+    .status {
+      font-size: 11px;
+      color: #bbb;
+    }
+
+    .input-area {
+      display: flex;
+      gap: 10px;
+    }
+
+    input, button {
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+    }
+
+    #input {
+      flex: 1;
+      background: #2c2c2c;
+      color: white;
+    }
+
+    #send {
+      background: #4CAF50;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <h2>Secure Chat</h2>
+    <div id="messages"></div>
+    <div class="input-area">
+      <input type="text" id="input" placeholder="Type a message..." />
+      <button id="send">Send</button>
+    </div>
+  </div>
+
+  <script>
+    // Replace this with your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBuJOn272TQ738ai3HV3gLJtKLf6K0PqIg",
+      authDomain: "chat-app-fd31a.firebaseapp.com",
+      databaseURL: "https://chat-app-fd31a-default-rtdb.firebaseio.com",
+      projectId: "chat-app-fd31a",
+      storageBucket: "chat-app-fd31a.firebasestorage.app",
+      messagingSenderId: "862405016226",
+      appId: "G-HZLNWYHC8L"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Prompt for username
+    let username = '';
+    while (!['alice', 'bob'].includes(username.toLowerCase())) {
+      username = prompt("Enter your username (alice or bob):");
+      if (!['alice', 'bob'].includes(username?.toLowerCase())) {
+        alert("Only 'alice' and 'bob' are allowed.");
+      }
+    }
+    username = username.toLowerCase();
+
+    const messagesRef = db.ref('messages');
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+
+    function formatTime(ts) {
+      const date = new Date(ts);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function addMessage(msg) {
+      const div = document.createElement('div');
+      div.classList.add('message');
+      div.classList.add(msg.sender === username ? 'from-me' : 'from-other');
+      div.textContent = msg.text;
+
+      const status = document.createElement('div');
+      status.className = 'status';
+      status.textContent = `Sent by ${msg.sender} at ${formatTime(msg.timestamp)}`;
+      div.appendChild(status);
+
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // Load and listen for new messages
+    messagesRef.on('child_added', snapshot => {
+      const msg = snapshot.val();
+      addMessage(msg);
+    });
+
+    sendBtn.onclick = () => {
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      const msg = {
+        sender: username,
+        text,
+        timestamp: Date.now()
+      };
+
+      messagesRef.push(msg);
+      inputEl.value = '';
+    };
+
+    inputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendBtn.click();
+    });
+  </script>
+</body>
+</html>
