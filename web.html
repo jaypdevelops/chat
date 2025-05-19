@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Two-User Firebase Chat with Image Upload</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #121212;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 600px;
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    #messages {
+      height: 400px;
+      overflow-y: auto;
+      background: #2c2c2c;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .message {
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      background: #333;
+      word-break: break-word;
+    }
+
+    .from-me {
+      background: #4CAF50;
+      text-align: right;
+    }
+
+    .from-other {
+      background: #3a3a3a;
+      text-align: left;
+    }
+
+    .status {
+      font-size: 11px;
+      color: #bbb;
+      margin-top: 5px;
+    }
+
+    .read-status {
+      font-size: 11px;
+      color: #4CAF50;
+      margin-top: 5px;
+    }
+
+    .input-area {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    input[type="text"], button, input[type="file"] {
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+    }
+
+    #input {
+      flex: 1;
+      background: #2c2c2c;
+      color: white;
+    }
+
+    #send {
+      background: #4CAF50;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    img.chat-image {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 5px;
+    }
+
+    video, audio {
+      max-width: 100%;
+      margin-top: 5px;
+    }
+
+    a.file-link {
+      display: inline-block;
+      color: #4CAF50;
+      margin-top: 5px;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <h2>Secure Chat with Image Upload</h2>
+    <div id="messages"></div>
+    <div class="input-area">
+      <input type="text" id="input" placeholder="Type a message..." />
+      <button id="send">Send</button>
+    </div>
+    <div class="input-area">
+      <input type="file" id="fileInput" accept="image/*,video/*,audio/*,application/pdf,.zip" />
+      <div id="imagePreview"></div> <!-- Container for image preview -->
+    </div>
+  </div>
+
+  <script>
+    // Firebase configuration (replace with your actual config)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBuJOn272TQ738ai3HV3gLJtKLf6K0PqIg",
+      authDomain: "chat-app-fd31a.firebaseapp.com",
+      databaseURL: "https://chat-app-fd31a-default-rtdb.firebaseio.com",
+      projectId: "chat-app-fd31a",
+      storageBucket: "chat-app-fd31a.appspot.com",
+      messagingSenderId: "862405016226",
+      appId: "G-HZLNWYHC8L"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Prompt for username
+    let username = '';
+    while (!['alice', 'bob'].includes(username.toLowerCase())) {
+      username = prompt("Enter your username (alice or bob):");
+      if (!['alice', 'bob'].includes(username?.toLowerCase())) {
+        alert("Only 'alice' and 'bob' are allowed.");
+      }
+    }
+    username = username.toLowerCase();
+
+    const messagesRef = db.ref('messages');
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    const fileInput = document.getElementById('fileInput');
+    const imagePreview = document.getElementById('imagePreview');
+
+    let selectedFile = null;
+    let base64Image = null;
+
+    // Format timestamp to readable time
+    function formatTime(ts) {
+      const date = new Date(ts);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Add message to chat
+    function addMessage(msg) {
+      const div = document.createElement('div');
+      div.classList.add('message', msg.sender === username ? 'from-me' : 'from-other');
+
+      // Add text message
+      if (msg.text) {
+        const textNode = document.createElement('div');
+        textNode.textContent = msg.text;
+        div.appendChild(textNode);
+      }
+
+      // Add image preview inside the message bubble if it's a base64 image
+      if (msg.base64Image) {
+        const img = document.createElement('img');
+        img.src = msg.base64Image;
+        img.className = 'chat-image';
+        div.appendChild(img);
+      }
+
+      // Add status (who sent the message, and at what time)
+      const status = document.createElement('div');
+      status.className = 'status';
+      status.textContent = `Sent by ${msg.sender} at ${formatTime(msg.timestamp)}`;
+      div.appendChild(status);
+
+      // Add read status if it's been read
+      if (msg.read) {
+        const readStatus = document.createElement('div');
+        readStatus.className = 'read-status';
+        readStatus.textContent = `Read by ${msg.readBy} at ${formatTime(msg.readTime)}`;
+        div.appendChild(readStatus);
+      }
+
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // Load and listen for new messages
+    messagesRef.on('child_added', snapshot => {
+      const msg = snapshot.val();
+      addMessage(msg);
+
+      // Check if the current user is the recipient and mark the message as read
+      if (msg.sender !== username && !msg.read) {
+        const readTimestamp = Date.now();
+        const readBy = username;
+
+        // Update the message in Firebase to mark it as read
+        messagesRef.child(snapshot.key).update({
+          read: true,
+          readBy: readBy,
+          readTime: readTimestamp
+        });
+      }
+    });
+
+    // Send text or image message
+    sendBtn.onclick = () => {
+      const text = inputEl.value.trim();
+      if (!text && !base64Image) return;
+
+      const msg = {
+        sender: username,
+        text,
+        timestamp: Date.now(),
+        read: false,  // Initially not read
+        base64Image: base64Image || null  // Send base64 image if available
+      };
+
+      // Send the message (with base64Image if present)
+      messagesRef.push(msg);
+
+      // Reset input fields after sending the message
+      inputEl.value = ''; // Clear input after sending
+      base64Image = null;
+      imagePreview.innerHTML = ''; // Clear preview
+    };
+
+    // Trigger text message sending on Enter key press
+    inputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendBtn.click();
+    });
+
+    // Show image preview inside input area
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Read image as base64 string
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        base64Image = e.target.result;  // Store the base64 image string
+        const img = document.createElement('img');
+        img.src = base64Image;
+        img.classList.add('chat-image');
+        imagePreview.innerHTML = ''; // Clear previous preview
+        imagePreview.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+
+      selectedFile = file;
+    });
+  </script>
+</body>
+</html>
